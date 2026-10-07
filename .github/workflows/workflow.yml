@@ -1,0 +1,52 @@
+name: Main workflow
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: 0 0 * * 5
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is not supported: the plugin only knows Linux x86_64 and macOS bin paths.
+        os:
+          - macos-latest
+          - ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      MISE_USE_VERSIONS_HOST: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          cache: false
+
+      - name: Setup plugin
+        run: |
+          mkdir -p ~/.local/share/mise/plugins
+          ln -s $PWD ~/.local/share/mise/plugins/tinytex
+
+      - name: Validate mise ls-remote works
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mise ls-remote tinytex | head -20
+          mise ls-remote tinytex | grep -E '^[0-9]{4}\.[0-9]+$' | head -1
+          mise ls-remote tinytex | grep -Fx '2026.09'
+
+      - name: Install and verify TinyTeX
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mise i tinytex@2026.09
+          mise x tinytex@2026.09 -- tex --version | head -1
+          mise x tinytex@2026.09 -- tlmgr --version | head -3
